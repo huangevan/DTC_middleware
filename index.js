@@ -32,7 +32,6 @@ var address = require('address');
 var myip = address.ip();
 var a = 0;
 var time = [0,0,0]
-var b = 0;
 
 //========DEFAULT TIME VARIABLE ========//
 var timerDensity = [10, 30, 50]
@@ -217,7 +216,6 @@ function readLoopCoilLightStatus(i, j, im, jm, functionx) {
 function showStatusCoilLight() {
   console.log(statusCoilLight);
   console.log(laneDensity);
-  console.log(b);
   obtainCongestion();
   updatePLCTimer();
 }
