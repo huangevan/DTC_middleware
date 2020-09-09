@@ -1,4 +1,5 @@
-const plcip = "192.168.1.225";
+//const plcip = "192.168.1.225";
+const plcip = "172.16.11.242";
 const plcport = 502;
 // create an empty modbus client
 const ModbusRTU = require("modbus-serial");
@@ -39,7 +40,7 @@ var myip = address.ip();
 var time = [0, 0, 0]
 
 //========DEFAULT TIME VARIABLE ========//
-var timerDensity = [10, 15, 20] // individual time set for low-med-high congestion
+var timerDensity = [10, 30, 50] // individual time set for low-med-high congestion
 
 //======== LANE CONGESTION =========//
 var laneDensity = [1, 1, 1, 1] // lane density where 0:low, 1:med, 2:high
@@ -76,10 +77,10 @@ function respReadPLC(addr, res) { //checks for status of mode wether on or not
   });
 }
 
+//=== GET TRAFFIC CONDITION AND COUNTDOWN ===//
 app.get('/trafficstatus', (req, res) => {
   getAllData(res);
 })
-
 function getAllData(res) {
    client.readHoldingRegisters(addressCounter[0], 8, function(err, data) {
   res.send(data.data);
@@ -87,28 +88,7 @@ function getAllData(res) {
   });
 }
 
-//============================//
-// RECEIVE LANE DENSITY BYPASS//
-//============================//
-app.post('/bypassdensity', (req, res) => {
-  //lane4 = (JSON.parse(req.body.lane4));
-  // if (typeof req.body.lane !== 'undefined') {
-  //   lane4 = (JSON.parse(req.body.lane4));
-  //   console.log('Ini lane 4');
-  // }
-  updateLaneDensity(req.body.lane, req.body.density)
-  console.log(laneDensity);
-  res.sendStatus(200);
-});
-
-function updateLaneDensity(lane, density) {
-  laneDensity[lane - 1] = density;
-}
-
-
-//====================//
-// UPDATE PRESET TIME //
-//====================//
+//==== UPDATE PRESET TIME ===//
 app.post('/updatepreset', (req, res) => {
   updatePreset(req.body.level, req.body.time)
   console.log(timerDensity);
@@ -119,7 +99,7 @@ function updatePreset(level, time) {
   timerDensity[level - 1] = time;
 }
 
-
+//=== SWITCH MODES ===//
 //switch to dynamic mode
 app.get('/dynamic', (req, res) => {
   enableMode(1013, res);
@@ -155,18 +135,6 @@ function connectPLC() {
   });
   console.log(`PLC ${plcip} : ${plcport}  Connected!`)
   client.setID(2);
-}
-
-function readPLC(addr) {
-  // read the values of 10 registers starting at address 0
-  // on device number 1. and log the values to the console.
-  //setTimeout(function() {
-  client.readHoldingRegisters(addr, 1, function(err, data) {
-    console.log(data.data);
-    return (data.data);
-  });
-  console.log('reading...');
-  //}, 500);
 }
 
 //=====================//
@@ -220,9 +188,9 @@ function obtainCongestion() {
       client.writeCoil(1006, 0);
     }, 500);
     if (statusCoilLight[3][1] !== statusYellowLight[3]) { // and state of yellow light is originaly off
-      axios.get('https://jsonplaceholder.typicode.com/todos/1') //obtain traffic for lane 1
+      axios.get('http://13.229.203.154/dtc/1') //obtain traffic for lane 1
         .then(response => {
-          laneDensity[0] = (response.data.id); //parse and store that shit
+          laneDensity[0] = (response.data.density_level); //parse and store that shit
           //console.log('lane1 data obtained');
         })
         .catch(error => {
@@ -232,9 +200,9 @@ function obtainCongestion() {
     }
   } else if (statusCoilLight[0][1] == true) { //if yellow light in lane 1 is on
     if (statusCoilLight[0][1] !== statusYellowLight[0]) { //and state of yellow light is originlly off
-      axios.get('https://jsonplaceholder.typicode.com/todos/2') //obtain traffic for lane 2
+      axios.get('http://13.229.203.154/dtc/2') //obtain traffic for lane 2
         .then(response => {
-          laneDensity[1] = (response.data.id);
+          laneDensity[1] = (response.data.density_level);
           //console.log('lane2 data obtained');
         })
         .catch(error => {
@@ -244,9 +212,9 @@ function obtainCongestion() {
     }
   } else if (statusCoilLight[1][1] == true) { //lane3
     if (statusCoilLight[1][1] !== statusYellowLight[1]) {
-      axios.get('https://jsonplaceholder.typicode.com/todos/1')
+      axios.get('http://13.229.203.154/dtc/3')
         .then(response => {
-          laneDensity[2] = (response.data.id);
+          laneDensity[2] = (response.data.density_level);
           //console.log('lane3 data obtained');
         })
         .catch(error => {
@@ -256,9 +224,9 @@ function obtainCongestion() {
     }
   } else if (statusCoilLight[2][1] == true) { //lane4
     if (statusCoilLight[2][1] !== statusYellowLight[2]) {
-      axios.get('https://jsonplaceholder.typicode.com/todos/2')
+      axios.get('http://13.229.203.154/dtc/4')
         .then(response => {
-          laneDensity[3] = (response.data.id);
+          laneDensity[3] = (response.data.density_level);
           //console.log('lane4 data obtained');
         })
         .catch(error => {
