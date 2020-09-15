@@ -1,5 +1,5 @@
 //const plcip = "192.168.1.225";
-const plcip = "172.16.11.242";
+const plc;
 const plcport = 502;
 // create an empty modbus client
 const ModbusRTU = require("modbus-serial");
@@ -10,7 +10,7 @@ const delay = require("delay");
 const request = require('request');
 const axios = require('axios');
 
-const addressMode = [1040, 1014, 1018] //dynamic, hazard, regular
+const addressMode = [1040, 1041, 1042] //dynamic, hazard, regular
 const addressCounter = [51, 501, 502, 503];
 const addressCounterReg = 505;
 
@@ -30,9 +30,11 @@ var statusCoilLight = [
   [false, false, false],
   [false, false, false]
 ]
-var statusYellowLight = [false, false, false, false]
-var statusGreenLight = [false, false, false, false]
+var statusYellowLight = [false, false, false, false] // used to compare with previous state
+var statusGreenLight = [false, false, false, false] // used to compare with previous state
 
+var modeStatus = [true, false, false] // dynamic - regular - hazard ===value is stored here when mode is hit from backend
+var previousModeStatus
 
 app.use(express.json())
 var address = require('address');
@@ -51,29 +53,26 @@ var redLightCounter = [0, 0, 0, 0]
 var yellowLightCounter = [0, 0, 0, 0]
 connectPLC();
 
-
-
-
-app.get('/dynamicstatus', (req, res) => { //reads whether dynamic mode is on or off
+app.get('/currentstatus', (req, res) => { //reads whether dynamic mode is on or off
   respReadPLC(addressMode[0], res);
   //res.send(readPLC(1013))
   console.log('Done on http');
 })
 
-app.get('/hazardstatus', (req, res) => { //reads whether hazard mode is on or off
-  respReadPLC(addressMode[1], res);
-  console.log('Done on http');
-})
-
-app.get('/regularstatus', (req, res) => { //reads whether regular mode is on or off
-  respReadPLC(addressMode[2], res);
-  console.log('Done on http');
-})
+// app.get('/hazardstatus', (req, res) => { //reads whether hazard mode is on or off
+//   respReadPLC(addressMode[1], res);
+//   console.log('Done on http');
+// })
+//
+// app.get('/regularstatus', (req, res) => { //reads whether regular mode is on or off
+//   respReadPLC(addressMode[2], res);
+//   console.log('Done on http');
+// })
 
 function respReadPLC(addr, res) { //checks for status of mode wether on or not
   client.readCoils(addr,3, function(err, data) {
     console.log(data);
-    res.send(data.data[0-3]);
+    res.send(data.data);
   });
 }
 
@@ -102,14 +101,17 @@ function updatePreset(level, time) {
 //=== SWITCH MODES ===//
 //switch to dynamic mode
 app.get('/dynamic', (req, res) => {
+  modeStatus = [true, false, false];
   enableMode(1013, res);
 })
 //switch to hazard mode
 app.get('/hazard', (req, res) => {
+  modeStatus = [false, false, true];
   enableMode(1014, res);
 })
 //switch to regular mode
 app.get('/regular', (req, res) => {
+  modeStatus = [false, true, false];
   enableMode(1015, res);
 })
 
@@ -183,10 +185,11 @@ function showStatusCoilLight() {
 function obtainCongestion() {
 
   if (statusCoilLight[3][1] == true) { // if yellow light in lane4 is on
-    client.writeCoil(1006, 1); // send heatbeat to PLC
+    client.writeCoil(1006, 1); // send heartbeat to PLC
     setTimeout(function() {
       client.writeCoil(1006, 0);
     }, 500);
+
     if (statusCoilLight[3][1] !== statusYellowLight[3]) { // and state of yellow light is originaly off
       axios.get('http://13.229.203.154/dtc/1') //obtain traffic for lane 1
         .then(response => {
@@ -241,11 +244,14 @@ function obtainCongestion() {
 // UPDATE PLC TIME // when green light start
 //=================//
 function updatePLCTimer() {
+  
+
+
   if (statusCoilLight[0][2] == true) { // if green light in lane 1 is on
-    if (statusCoilLight[0][2] !== statusGreenLight[0]) {
+    if (statusCoilLight[0][2] !== statusGreenLight[0]) { // checks if green light
       client.writeRegister(0002, timerDensity[laneDensity[0]]); // update timer value
       //console.log('lane1 data updated');
-      statusGreenLight = [true, false, false, false];
+      statusGreenLight = [true, false, false, false]; //
     }
   } else if (statusCoilLight[1][2] == true) {
 
