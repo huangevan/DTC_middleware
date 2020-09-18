@@ -33,8 +33,8 @@ var statusCoilLight = [
 var statusYellowLight = [false, false, false, false] // used to compare with previous state
 var statusGreenLight = [false, false, false, false] // used to compare with previous state
 
-var modeStatus = [true, false, false] // dynamic - regular - hazard ===value is stored here when mode is hit from backend
-var previousModeStatus
+var modeStatus = 1 // dynamic - regular - hazard ===value is stored here when mode is hit from backend
+var previousModeStatus = 1
 
 app.use(express.json())
 var address = require('address');
@@ -70,7 +70,7 @@ app.get('/currentstatus', (req, res) => { //reads whether dynamic mode is on or 
 // })
 
 function respReadPLC(addr, res) { //checks for status of mode wether on or not
-  client.readCoils(addr,3, function(err, data) {
+  client.readCoils(addr, 3, function(err, data) {
     console.log(data);
     res.send(data.data);
   });
@@ -80,9 +80,10 @@ function respReadPLC(addr, res) { //checks for status of mode wether on or not
 app.get('/trafficstatus', (req, res) => {
   getAllData(res);
 })
+
 function getAllData(res) {
-   client.readHoldingRegisters(addressCounter[0], 8, function(err, data) {
-  res.send(data.data);
+  client.readHoldingRegisters(addressCounter[0], 8, function(err, data) {
+    res.send(data.data);
     console.log(data.data);
   });
 }
@@ -101,18 +102,17 @@ function updatePreset(level, time) {
 //=== SWITCH MODES ===//
 //switch to dynamic mode
 app.get('/dynamic', (req, res) => {
-  modeStatus = [true, false, false];
-  enableMode(1013, res);
+  modeStatus = 1;
+  res.send('enabled');
 })
 //switch to hazard mode
 app.get('/hazard', (req, res) => {
-  modeStatus = [false, false, true];
   enableMode(1014, res);
 })
 //switch to regular mode
 app.get('/regular', (req, res) => {
-  modeStatus = [false, true, false];
-  enableMode(1015, res);
+  modeStatus = 0;
+  res.send('enabled');
 })
 
 function enableMode(addr, res) {
@@ -122,9 +122,6 @@ function enableMode(addr, res) {
     res.send('enabled');
   }, 1000);
 }
-
-
-
 
 app.listen(port, () => {
   console.log(`Modbus Middleware listening at http://${myip}:${port}`)
@@ -244,13 +241,18 @@ function obtainCongestion() {
 // UPDATE PLC TIME // when green light start
 //=================//
 function updatePLCTimer() {
-  
-
-
   if (statusCoilLight[0][2] == true) { // if green light in lane 1 is on
     if (statusCoilLight[0][2] !== statusGreenLight[0]) { // checks if green light
       client.writeRegister(0002, timerDensity[laneDensity[0]]); // update timer value
       //console.log('lane1 data updated');
+      if (modeStatus !== previousModeStatus) {
+        previousModeStatus = modeStatus;
+        if (modeStatus = 1) { //dynamic
+          enableMode(1013, res); //enable mode dynamic
+        } else if (modeStatus = 0) { //regular
+          enableMode(1015, res);
+        }
+      }
       statusGreenLight = [true, false, false, false]; //
     }
   } else if (statusCoilLight[1][2] == true) {
